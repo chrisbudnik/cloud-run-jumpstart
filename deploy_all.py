@@ -82,7 +82,9 @@ def assign_roles_to_service_account(
             print(f"Role '{role}' assigned to service account '{service_account_email}' successfully.")
         
 
-def create_service_account_with_permissions(project_id, service_account_name, display_name, roles):
+def create_service_account_with_permissions(
+        project_id: str, service_account_name: str, display_name: str, roles: list[str]
+    ) -> str:
     """
     Create a service account and assign roles.
     """
@@ -90,7 +92,10 @@ def create_service_account_with_permissions(project_id, service_account_name, di
     account_email = create_service_account(project_id, service_account_name, display_name)
 
     # Assign roles to the service account
-    assign_roles_to_service_account(project_id, account_email, roles)
+    if roles:
+        assign_roles_to_service_account(project_id, account_email, roles)
+
+    return account_email
 
 
 def create_cloud_build_trigger(
@@ -116,7 +121,6 @@ def create_cloud_build_trigger(
         "--build-config", config_yaml,
         "--name", trigger_name,
         "--region", region,
-        #"--service-account", service_account_email,
         "--project", project_id,
         "--format=json"
     ]
@@ -128,5 +132,62 @@ def create_cloud_build_trigger(
     run_command(command)
 
 
+def validate_cloudbuild_yaml():
+    pass
+
+
+def main(
+        project_id: str, 
+        location: str, 
+        repository_name: str, 
+        repo_name: str, 
+        repo_owner: str, 
+        region: str, 
+    ) -> None:
+    
+    # Create a Docker repository in Google Artifact Registry
+    create_artifact_repository(project_id, location, repository_name)
+
+    # Create service account: cloud-run-operations
+    roles_operations = [
+        "roles/bigquery.jobUser",    
+        "roles/bigquery.dataViewer",  
+        "roles/viewer",               
+        "roles/storage.admin",        
+    ]
+
+    service_account_ops = create_service_account_with_permissions(
+        project_id, 
+        service_account_name = "sa-cloud-run-operations", 
+        display_name = "Service account for Cloud Run management and internal operations.", 
+        roles=roles_operations
+    )
+    
+    # Create service account: cloud-run-deployment
+    roles_deployment = [
+        "roles/artifactregistry.writer",
+        "roles/run.admin",
+        "roles/logging.logWriter",
+        "roles/iam.serviceAccountUser",
+        "roles/sourcerepo.reader"
+    ]
+
+    service_account_deploy = create_service_account_with_permissions(
+        project_id, 
+        service_account_name = "sa-cloud-run-deployment", 
+        display_name = "Service account for Cloud Build to deploy Cloud Run apps.", 
+        roles=roles_deployment
+    )
+
+
+    # Create a Cloud Build trigger
+    create_cloud_build_trigger(
+        project_id, repo_name, repo_owner, region,
+        trigger_name = "cloud-run-jumpstart-deploy", 
+        service_account_name = service_account_deploy, 
+        config_yaml = "cloudbuild.yaml"
+    )
+
+    
 
 
