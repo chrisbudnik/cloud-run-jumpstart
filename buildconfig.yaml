@@ -15,6 +15,7 @@ steps:
   args: ['push', '--all-tags', 'us-central1-docker.pkg.dev/${PROJECT_ID}/chris-artifact-registry/cloud-run-jumpstart-img']
 
 
+
 # Step 3: Deploy the Cloud Run service
 - id: "Deploy Cloud Run Service"
   name: 'gcr.io/cloud-builders/gcloud:latest'
@@ -46,6 +47,10 @@ steps:
     # Security 
     # Other options: '--no-allow-unauthenticated', 
     '--allow-unauthenticated', 
+
+    # Environment Variables and Secrets
+    '--set-secrets', 'ACCESS_KEY=access-key:latest',
+    '--set-env-vars', 'ENV_VAR=example_value',
 
     # Networking
     # Other options: 'internal', 'internal-and-cloud-load-balancing',
