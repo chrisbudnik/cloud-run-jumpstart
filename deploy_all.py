@@ -11,23 +11,23 @@ def run_command(command: list[str]) -> dict | None:
         return json.loads(result.stdout) if result.stdout else None
 
     except subprocess.CalledProcessError as e:
-        print(f"Failed to create build trigger: {e.stderr}")
+        print(f"Failed to execute gcloud command: {e.stderr}")
         return None
     
     except json.JSONDecodeError:
         print(f"Failed to parse JSON output: {result.stdout}")
         return None
-    
+
 
 def create_artifact_repository(
-        project_id: str, location: str, repository_name: str
+        project_id: str, location: str, docker_repository_name: str
     ) -> dict | None:
     """
     Create a Docker repository in Google Artifact Registry.
     """
     
     command = [
-        "gcloud", "artifacts", "repositories", "create", repository_name,
+        "gcloud", "artifacts", "repositories", "create", docker_repository_name,
         "--repository-format=docker",
         "--location", location,
         "--project", project_id,
@@ -37,12 +37,14 @@ def create_artifact_repository(
 
     # Check if the repository was created successfully
     if result:
-        print(f"Repository '{repository_name}' created successfully.")
+        print(f"Docker epository '{docker_repository_name}' created successfully.")
 
     return result
 
 
-def create_service_account(project_id, service_account_name, display_name):
+def create_service_account(
+        project_id: str, service_account_name: str, display_name: str
+    ) -> dict:
     """
     Create a service account.
     """
@@ -60,7 +62,7 @@ def create_service_account(project_id, service_account_name, display_name):
     
     # Add the service account email to the result
     result["account_email"] = account_email
-    return account_email
+    return result
 
 
 def assign_roles_to_service_account(
@@ -69,17 +71,26 @@ def assign_roles_to_service_account(
     """
     Assign roles to a service account.
     """
+    results = []
     for role in roles:
         add_role_command = [
             "gcloud", "projects", "add-iam-policy-binding", project_id,
             "--member", f"serviceAccount:{service_account_email}",
-            "--role", role
+            "--role", role,
+            "--condition=None",
+            "--format=json",
         ]
         result = run_command(add_role_command)
 
         # Check if roles were granted successfully
-        if result:
-            print(f"Role '{role}' assigned to service account '{service_account_email}' successfully.")
+        results.append(result)
+    
+    if all([item is not None for item in results]):
+        print(f"Roles [{','.join(roles)}] assigned to service account '{service_account_email}' successfully.")
+
+    return results
+
+    
         
 
 def create_service_account_with_permissions(
@@ -89,47 +100,50 @@ def create_service_account_with_permissions(
     Create a service account and assign roles.
     """
     # Create the service account
-    account_email = create_service_account(project_id, service_account_name, display_name)
+    account = create_service_account(project_id, service_account_name, display_name)
+    account_email = account.get("account_email")
 
     # Assign roles to the service account
-    if roles:
+    if roles and account_email:
         assign_roles_to_service_account(project_id, account_email, roles)
+    else: 
+        print("No roles were assigned to the service account.")
 
     return account_email
 
 
 def create_cloud_build_trigger(
         project_id: str, 
-        repo_name: str,      # github repo name 
-        repo_owner: str,     # github account 
+        repo_name: str, 
+        repo_owner: str,
+        repo_connection: str,
         trigger_name: str, 
-        region: str, 
+        config_yaml: str = "cloudbuild.yaml", 
+        region: str = "us-central1",  
         service_account_email: str = "", 
-        config_yaml: str = "cloudbuild.yaml",    
-         
-        
-        #tags
     ) -> dict | None:
 
     """Create a Cloud Build trigger for a GitHub repository."""
+    
+    repository = f"projects/{project_id}/locations/{region}/connections/{repo_connection}/repositories/{repo_owner}-{repo_name}"
 
     command = [
         "gcloud", "builds", "triggers", "create", "github",
-        "--repo-name", repo_name,
-        "--repo-owner", repo_owner,
+        "--repository", repository,
         "--branch-pattern", "^main$",
         "--build-config", config_yaml,
         "--name", trigger_name,
         "--region", region,
+        "--service-account", service_account_email,
         "--project", project_id,
         "--format=json"
     ]
-    
-    # Add the service account email if provided
+
     if service_account_email:
-        command.extend(["--service-account", service_account_email])
-    
-    run_command(command)
+        service_account = f"projects/{project_id}/serviceAccounts/{service_account_email}"
+        command.extend(["--service-account", service_account])
+
+    return run_command(command)
 
 
 def validate_cloudbuild_yaml():
@@ -139,14 +153,14 @@ def validate_cloudbuild_yaml():
 def main(
         project_id: str, 
         location: str, 
-        repository_name: str, 
+        docker_repo_name: str, 
         repo_name: str, 
         repo_owner: str, 
         region: str, 
     ) -> None:
     
     # Create a Docker repository in Google Artifact Registry
-    create_artifact_repository(project_id, location, repository_name)
+    create_artifact_repository(project_id, location, docker_repo_name)
 
     # Create service account: cloud-run-operations
     roles_operations = [
@@ -169,7 +183,7 @@ def main(
         "roles/run.admin",
         "roles/logging.logWriter",
         "roles/iam.serviceAccountUser",
-        "roles/sourcerepo.reader"
+        "roles/source.reader"
     ]
 
     service_account_deploy = create_service_account_with_permissions(
@@ -182,12 +196,24 @@ def main(
 
     # Create a Cloud Build trigger
     create_cloud_build_trigger(
-        project_id, repo_name, repo_owner, region,
-        trigger_name = "cloud-run-jumpstart-deploy", 
-        service_account_name = service_account_deploy, 
-        config_yaml = "cloudbuild.yaml"
+        project_id=project_id, 
+        repo_name=repo_name, 
+        repo_owner=repo_owner, 
+        trigger_name="cloud-run-jumpstart-deploy", 
+        region=region,
+        service_account_email=service_account_deploy, 
+        config_yaml="cloudbuild.yaml"
     )
 
     
 
 
+if __name__ == "__main__":
+    main(
+        project_id = "chris-sandbox-2023",
+        location = "us-central1",
+        docker_repo_name = "cloud-run-docker-images",
+        repo_name = "cloud-run-jumpstart",
+        repo_owner = "chrisbudnik",
+        region = "us-central1"
+    )
