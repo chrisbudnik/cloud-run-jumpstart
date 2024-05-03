@@ -1,0 +1,64 @@
+steps:
+
+# Step 1: Build the Docker image
+- id: "Build Docker Image"
+  name: 'gcr.io/cloud-builders/docker:latest'
+  dir: 'google_auth'
+  args: ['build', 
+          '-t', 'us-central1-docker.pkg.dev/${PROJECT_ID}/chris-artifact-registry/cloud-run-jumpstart-img',
+          '.']
+
+
+# Step 2: Push the Docker image to Artifact Registry
+- id: "Push Docker Image To Artifact Registry"
+  name: 'gcr.io/cloud-builders/docker:latest'
+  args: ['push', '--all-tags', 'us-central1-docker.pkg.dev/${PROJECT_ID}/chris-artifact-registry/cloud-run-jumpstart-img']
+
+
+# Step 3: Deploy the Cloud Run service
+- id: "Deploy Cloud Run Service"
+  name: 'gcr.io/cloud-builders/gcloud:latest'
+  args: [
+    # Deploy command, service name: cloud-run-jumpstart
+    'run', 'deploy', 'cloud-run-jumpstart',
+
+    # Region (should be same as the Artifact Registry, Cloud Build trigger)
+    '--region', 'us-central1',
+
+    # Service Account (SA) that will be used by the Cloud Run Service to execute endpoint logic.
+    # For example, if app is supposed to access BigQuery, then the SA should be granted permissions like: roles/bigquery.dataViewer or roles/bigquery.jobUser
+    '--service-account' ,'sa-customers-svc@${PROJECT_ID}.iam.gserviceaccount.com',
+    
+    # Container Set-up 
+    # Image location in Artifact Registry
+    '--image', 'us-central1-docker.pkg.dev/${PROJECT_ID}/chris-artifact-registry/cloud-run-jumpstart-img',
+
+    '--port', '8080',          # Container port to listen on, adjust depending on the framework used (flask / fastapi / streamlit etc.)
+    '--cpu', '1',              # Number of CPUs allocated to each instance
+    '--memory', '256Mi',       # Memory allocated to each instance
+    '--min-instances', '0',    # Minimum number of instances (auto-scaling)
+    '--max-instances', '1',    # Maximum number of instances (auto-scaling)
+
+    # Requests and Limits
+    '--timeout', '30',         # Maximum request handling time before termination (seconds)
+    '--concurrency', '80',     # Maximum number of requests per container instance
+
+    # Security 
+    # Other options: '--no-allow-unauthenticated', 
+    '--allow-unauthenticated', 
+
+    # Networking
+    # Other options: 'internal', 'internal-and-cloud-load-balancing',
+    '--ingress', 'all', 
+
+    # Platform
+    # Other options: 'managed', 'gke',
+    '--platform', 'managed',
+    
+    ]
+
+# Cloud build Settings
+timeout: 600s                     # Total time before the build is considered failed
+options:
+  logging: CLOUD_LOGGING_ONLY     # Use only Cloud Logging for build logs
+  dynamic_substitutions: true     # IMPORTANT! Allow substitutions to be dynamically provided at build time, like ${PROJECT_ID}
