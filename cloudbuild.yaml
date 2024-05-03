@@ -3,7 +3,7 @@ steps:
 # Step 1: Build the Docker image
 - id: "Build Docker Image"
   name: 'gcr.io/cloud-builders/docker:latest'
-  dir: 'google_auth'
+  dir: 'app'
   args: ['build', 
           '-t', 'us-central1-docker.pkg.dev/${PROJECT_ID}/chris-artifact-registry/cloud-run-jumpstart-img',
           '.']
