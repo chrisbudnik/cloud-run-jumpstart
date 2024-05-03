@@ -1,0 +1,27 @@
+# fastapi
+fastapi
+uvicorn
+ 
+# google cloud
+cloudevents
+google-cloud-bigquery
+google-cloud-storage
+google-cloud-logging
+google-auth
+google-events
+
+# application modules
+google-ads
+
+# data handling
+pandas
+numpy
+
+# http requests
+asyncio
+httpx
+
+# utils
+protobuf
+pyarrow
+db-dtypes
