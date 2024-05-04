@@ -16,7 +16,7 @@ def dataframe_to_bigquery(
         partition_field: str = None,
         clustering_fields: list[str] = None,
         write_disposition: Literal["WRITE_TRUNCATE", "WRITE_APPEND", "WRITE_EMPTY"] = "WRITE_APPEND",
-    ) -> bool:
+    ) -> Literal["export-completed", "missing-data"]:
     """
 
     
@@ -56,4 +56,4 @@ def dataframe_to_bigquery(
         logger.error(f"Failed to upload data to BigQuery. {e}")
         raise HTTPException(status_code=500, detail="Failed to upload data to BigQuery.")
 
-    return "success"
+    return "export-completed"
