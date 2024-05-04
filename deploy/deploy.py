@@ -12,11 +12,11 @@ def run_command(command: list[str]) -> dict | None:
 
     except subprocess.CalledProcessError as e:
         print(f"Failed to execute gcloud command: {e.stderr}")
-        return None
+        return
     
     except json.JSONDecodeError:
         print(f"Failed to parse JSON output: {result.stdout}")
-        return None
+        return
 
 
 def create_artifact_repository(
@@ -36,8 +36,13 @@ def create_artifact_repository(
     result = run_command(command)
 
     # Check if the repository was created successfully
-    if result:
-        print(f"Docker epository '{docker_repository_name}' created successfully.")
+    if not result:
+        raise NameError(
+            f"Failed to create Docker repository '{docker_repository_name}'"
+            " - check if it already exists."
+            )
+
+    print(f"Docker epository '{docker_repository_name}' created successfully.")
 
     return result
 
@@ -58,6 +63,13 @@ def create_service_account(
 
     # Build the service account
     result = run_command(create_account_command)
+
+    if not result:
+        raise NameError(
+            f"Failed to create service account '{service_account_name}'"
+            " - check if it already exists."
+            )
+    
     account_email = f"{service_account_name}@{project_id}.iam.gserviceaccount.com"
     
     # Add the service account email to the result
@@ -87,6 +99,10 @@ def assign_roles_to_service_account(
     
     if all([item is not None for item in results]):
         print(f"Roles [{','.join(roles)}] assigned to service account '{service_account_email}' successfully.")
+    
+    else:
+        error_roles = [role for role, result in zip(roles, results) if result is None]
+        raise NameError(f"Failed to assign roles: {", ".join(error_roles)} to the service account.")
 
     return results
         
@@ -141,11 +157,13 @@ def create_cloud_build_trigger(
         service_account = f"projects/{project_id}/serviceAccounts/{service_account_email}"
         command.extend(["--service-account", service_account])
 
-    return run_command(command)
+    result = run_command(command)
 
-
-def validate_cloudbuild_yaml():
-    pass
+    if not result:
+        raise NameError(
+            f"Failed to create cloud build trigger '{trigger_name}'"
+            " - check if it already exists."
+            )
 
 
 def main(
