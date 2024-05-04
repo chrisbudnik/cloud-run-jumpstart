@@ -3,18 +3,14 @@ provider "google" {
   region  = "us-central1"
 }
 
-# Create a Docker repository in Google Artifact Registry
-resource "google_artifact_registry_repository" "docker_repo" {
-  location      = "us-central1"
-  repository_id = "cloud-run-docker-images-tf"
-  format        = "DOCKER"
-
-  labels = {
-    environment = "production"
-  }
-}
-
+# Define local variables
 locals {
+  project         = "chris-sandbox-2023"
+  region          = "us-central1"
+  repo_connection = "chris-github-connection"
+  repo_owner      = "chrisbudnik"
+  repo_name       = "cloud-run-jumpstart"
+
   roles_operations = [
     "roles/bigquery.jobUser",
     "roles/bigquery.dataViewer",
@@ -28,11 +24,17 @@ locals {
     "roles/iam.serviceAccountUser",
     "roles/source.reader"
   ]
-  project         = "chris-sandbox-2023"
-  region          = "us-central1"
-  repo_connection = "chris-github-connection"
-  repo_owner      = "chrisbudnik"
-  repo_name       = "cloud-run-jumpstart"
+}
+
+# Create a Docker repository in Google Artifact Registry
+resource "google_artifact_registry_repository" "docker_repo" {
+  location      = "us-central1"
+  repository_id = "cloud-run-docker-images-tf"
+  format        = "DOCKER"
+
+  labels = {
+    environment = "production"
+  }
 }
 
 # Create service accounts for operations and deployment
