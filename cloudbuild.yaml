@@ -5,14 +5,14 @@ steps:
   name: 'gcr.io/cloud-builders/docker:latest'
   dir: 'app'
   args: ['build', 
-          '-t', 'us-central1-docker.pkg.dev/${PROJECT_ID}/chris-artifact-registry/cloud-run-jumpstart-img',
+          '-t', 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-docker-images/cloud-run-jumpstart-img',
           '.']
 
 
 # Step 2: Push the Docker image to Artifact Registry
 - id: "Push Docker Image To Artifact Registry"
   name: 'gcr.io/cloud-builders/docker:latest'
-  args: ['push', '--all-tags', 'us-central1-docker.pkg.dev/${PROJECT_ID}/chris-artifact-registry/cloud-run-jumpstart-img']
+  args: ['push', '--all-tags', 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-docker-images/cloud-run-jumpstart-img']
 
 
 # Step 3: Deploy the Cloud Run service
@@ -27,11 +27,11 @@ steps:
 
     # Service Account (SA) that will be used by the Cloud Run Service to execute endpoint logic.
     # For example, if app is supposed to access BigQuery, then the SA should be granted permissions like: roles/bigquery.dataViewer or roles/bigquery.jobUser
-    '--service-account' ,'sa-customers-svc@${PROJECT_ID}.iam.gserviceaccount.com',
+    '--service-account' ,'sa-cloud-run-operations@${PROJECT_ID}.iam.gserviceaccount.com',
     
     # Container Set-up 
     # Image location in Artifact Registry
-    '--image', 'us-central1-docker.pkg.dev/${PROJECT_ID}/chris-artifact-registry/cloud-run-jumpstart-img',
+    '--image', 'us-central1-docker.pkg.dev/${PROJECT_ID}/cloud-run-docker-images/cloud-run-jumpstart-img',
 
     '--port', '8080',          # Container port to listen on, adjust depending on the framework used (flask / fastapi / streamlit etc.)
     '--cpu', '1',              # Number of CPUs allocated to each instance
