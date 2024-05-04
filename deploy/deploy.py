@@ -89,8 +89,6 @@ def assign_roles_to_service_account(
         print(f"Roles [{','.join(roles)}] assigned to service account '{service_account_email}' successfully.")
 
     return results
-
-    
         
 
 def create_service_account_with_permissions(
@@ -206,7 +204,6 @@ def main(
     )
 
     
-
 
 if __name__ == "__main__":
     main(
