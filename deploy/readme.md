@@ -11,7 +11,7 @@ I've included two deployment automations that are mutually independent. The opti
 - cloud build trigger based on cloudbuild.yaml and deployment SA. 
 - bigquery datasets: monitoring, experiments
 - cloud storage bucket: experiments-bucket
-- 
+- log sink that will gather cloud run logs in BigQuery monitoring dataset (tables will appear after cloud run deployment is ready)
 
 ## **Deploy Cloud Run**
 Cloud Run service can be deployed by:
@@ -19,7 +19,6 @@ Cloud Run service can be deployed by:
 - manually invoking the trigger 
 - pushing to repo (if used as template)
 
-
-## *Differnces between methods**
+## **Differnces between methods**
 Right now, terraform script does not support creation of all assets.
 
