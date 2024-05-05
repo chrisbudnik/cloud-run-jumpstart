@@ -37,8 +37,11 @@ logger.addHandler(stream_handler)
 
 # Middleware to verify 'key' in the request headers
 class VerifyKeyMiddleware(BaseHTTPMiddleware):
+    """
+    
+    """
     async def dispatch(self, request: Request, call_next):
-        key = request.headers.get('key', None)
+        key = request.headers.get('access-key', None)
 
         if key != os.environ.get("ACCESS_KEY"):
             raise HTTPException(status_code=403, detail="ACCESS_DENIED")
@@ -47,7 +50,10 @@ class VerifyKeyMiddleware(BaseHTTPMiddleware):
         return response
     
 # Middleware to log params
-class LogRequestMiddleware(BaseHTTPMiddleware):
+class LogRequestsMiddleware(BaseHTTPMiddleware):
+    """
+    
+    """
     async def dispatch(self, request: Request, call_next):
         # Handle GET requests
         if request.method == "GET":
@@ -68,7 +74,7 @@ class LogRequestMiddleware(BaseHTTPMiddleware):
         return response
 
 # Adding the middleware to the application
-app.add_middleware(LogRequestMiddleware)
+app.add_middleware(LogRequestsMiddleware)
 
 
 def verify_google_token(request: Request):
@@ -92,19 +98,70 @@ def verify_google_token(request: Request):
 
 
 # Basic Endpoint - only middleware auth
-@app.get("/home")
-def home():
-    logger.info("APP: Test request successful.")
-    return {"message": "This is a home endpoint"}
-
-
-@app.get("/protected-data")
-async def protected_data(claims: dict = Depends(verify_google_token)):
+@app.get("/security/middleware")
+def security_middleware():
+    """
     
-    email = claims.get("email", "anonymous user")
-    content = {"message": f"Hello, {email}!"}
+    """
+    # Custom logic ...
 
-    # prints service account email
-    logger.info(f"APP: {content}")
+    content = {"message": "This is an endpoint with middleware auth."}
+    logger.info("Test request successful.")
+    return JSONResponse(content=content)
+
+
+@app.get("/security/google-oauth")
+async def security_google_oauth(claims: dict = Depends(verify_google_token)):
+    """
+    
+    
+    """
+    # Custom logic ...
+
+    # Accessing the email from the claims
+    email = claims.get("email", "anonymous user")
+    content = {"message": f"This is an endpoint with google auth. Email used: {email}!"}
+    logger.info(content)
 
     return JSONResponse(content=content)
+
+
+@app.post("/data/to-bigquery")
+def data_to_bigquery():
+    """
+    
+    """
+    pass
+
+
+@app.post("/data/to-storage")
+def data_to_storage():
+    """
+    
+    """
+    pass
+
+
+@app.post("/pubsub/to-bigquery")
+def pubsub_to_bigquery():
+    """
+    
+    """
+    pass
+
+
+@app.post("/eventarc/gcs-to-bigquery")
+def eventarc_gcs_to_bigquery():
+    """
+    
+    """
+    pass
+
+
+@app.post("/database/mysql-to-bigquery")
+def database_msql_to_bigquery():
+    """
+    
+    """
+    pass
+
