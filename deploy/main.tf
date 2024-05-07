@@ -63,3 +63,21 @@ resource "google_project_iam_member" "iam_member_deploy" {
   role    = each.value
   member  = "serviceAccount:${google_service_account.service_account["deployment-tf"].email}"
 }
+
+# Create BigQuery dataset
+resource "google_bigquery_dataset" "my_dataset" {
+  dataset_id                  = "monitoring"
+  location                    = "US"  # Choose the appropriate location
+  description                 = "Dataset for storing Cloud Run logs"
+  delete_contents_on_destroy  = false
+}
+
+# Create logging sink for Cloud Run logs
+resource "google_logging_project_sink" "my_sink" {
+  name                       = "cloud-run-logs-to-bigquery"
+  destination                = "bigquery.googleapis.com/projects/${google_bigquery_dataset.my_dataset.project}/datasets/${google_bigquery_dataset.my_dataset.dataset_id}"
+  filter                     = "resource.type=\"cloud_run_revision\""
+  unique_writer_identity     = true
+}
+
+
