@@ -165,6 +165,25 @@ def create_cloud_build_trigger(
             " - check if it already exists."
             )
 
+def deploy_bigquery_log_sink(
+        project_id: str, dataset_name: str, sink_name: str
+    ) -> dict | None:
+    """
+    Deploys a BigQuery log sink to export logs from Cloud Run to a BigQuery dataset.
+    """
+    
+    command = [
+        "gcloud", "logging", "sinks", "create",
+        sink_name,
+        f"bigquery.googleapis.com/projects/{project_id}/datasets/{dataset_name}",
+        "--log-filter",
+        "resource.type=\"cloud_run_revision\"",
+        "--project",
+        project_id,
+        "--format=json"
+    ]
+
+    return run_command(command)
 
 def main(
         project_id: str, 
