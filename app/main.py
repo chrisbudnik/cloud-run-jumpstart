@@ -18,8 +18,11 @@ from google.cloud import logging as cloud_logging
 from google.auth.transport import requests
 from google.oauth2 import id_token
 
-# custom
+# ads
 from google.ads.googleads.client import GoogleAdsClient
+
+# custom
+from custom_module.bigquery_actions import dataframe_to_bigquery, send_data_to_bigquery 
 
 
 app = FastAPI()
@@ -114,7 +117,6 @@ def security_middleware():
 async def security_google_oauth(claims: dict = Depends(verify_google_token)):
     """
     
-    
     """
     # Custom logic ...
 
@@ -127,11 +129,23 @@ async def security_google_oauth(claims: dict = Depends(verify_google_token)):
 
 
 @app.post("/data/to-bigquery")
-def data_to_bigquery():
+async def data_to_bigquery(data: dict):
     """
     
     """
-    pass
+    # Set the table reference - can also be defined in config file
+    dataset_id = 'your_dataset_id'
+    table_id = 'your_table_id'
+
+    # Apply custom logic to process `data`...
+    data = data
+
+    # Connect to BigQuery
+    bq_client = bigquery.Client()
+    
+    # Send data to BigQuery with custom function
+    return send_data_to_bigquery(bq_client, dataset_id, table_id, data)
+
 
 
 @app.post("/data/to-storage")
