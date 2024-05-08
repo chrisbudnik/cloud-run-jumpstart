@@ -3,6 +3,8 @@ import os
 import json
 import sys
 from typing import Literal
+from uuid import uuid4
+from datetime import datetime
 import logging
 
 # server
@@ -12,6 +14,7 @@ from fastapi.responses import JSONResponse
 
 # google cloud
 from google.cloud import bigquery
+from google.cloud import storage
 from google.cloud import logging as cloud_logging
 
 # auth flow
@@ -23,6 +26,7 @@ from google.ads.googleads.client import GoogleAdsClient
 
 # custom
 from custom_module.bigquery_actions import dataframe_to_bigquery, send_data_to_bigquery 
+from custom_module.storage_actions import send_data_to_gcs
 
 
 app = FastAPI()
@@ -147,13 +151,26 @@ async def data_to_bigquery(request: Request):
     return send_data_to_bigquery(bq_client, dataset_id, table_id, data)
 
 
-
 @app.post("/data/to-storage")
-def data_to_storage():
+async def data_to_storage(request: Request):
     """
     
     """
-    pass
+    # Set the bucket name 
+    bucket_name = "your_bucket_name"
+
+    # Create a unique file name: datetime + uuid
+    unique_id = str(datetime.now()) + str(uuid4())
+    file_name = f"your_file_name_{unique_id}"
+
+    # Unpack data from the request
+    data = await request.json()
+
+    # Connect to GCS
+    storage_client = storage.Client()
+    
+    # Send data to GCS using the helper function
+    return send_data_to_gcs(storage_client, bucket_name, file_name, data)
 
 
 @app.post("/pubsub/to-bigquery")
