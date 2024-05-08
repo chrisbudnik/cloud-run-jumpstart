@@ -129,7 +129,7 @@ async def security_google_oauth(claims: dict = Depends(verify_google_token)):
 
 
 @app.post("/data/to-bigquery")
-async def data_to_bigquery(data: dict):
+async def data_to_bigquery(request: Request):
     """
     
     """
@@ -138,7 +138,7 @@ async def data_to_bigquery(data: dict):
     table_id = 'your_table_id'
 
     # Apply custom logic to process `data`...
-    data = data
+    data = await request.json()
 
     # Connect to BigQuery
     bq_client = bigquery.Client()
