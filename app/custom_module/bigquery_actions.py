@@ -92,7 +92,9 @@ def send_data_to_bigquery(
         table_id: str, 
         data: dict
     ) -> JSONResponse:
-
+    """
+    
+    """
     # Check if the table exists in dataset
     if not check_if_table_exists(client, dataset_id, table_id):
         raise HTTPException(status_code=404, detail="Table not found in BigQuery.")
@@ -106,9 +108,8 @@ def send_data_to_bigquery(
         logger.error(f"Errors while inserting into BigQuery: {errors}")
         raise HTTPException(status_code=404, detail="Failed to send data to BigQuery.")
     
-    else:
-        logger.info("Data sent to BigQuery successfully.")
-        return JSONResponse({"message": "Data sent to BigQuery successfully."}, status_code=200)
+    logger.info("Data sent to BigQuery successfully.")
+    return JSONResponse({"message": "Data sent to BigQuery successfully."}, status_code=200)
 
 
 
