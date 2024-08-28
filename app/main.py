@@ -1,154 +1,138 @@
 # system
-import os
-import json
-import sys
-from typing import Literal
-from uuid import uuid4
+from typing import Literal, Optional, List
 from datetime import datetime
 import logging
+from pydantic import BaseModel
+import pandas as pd
 
 # server
 from fastapi import FastAPI, HTTPException, Request, Depends
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.responses import JSONResponse
 
-# google cloud
-from google.cloud import bigquery
-from google.cloud import storage
+# google
 from google.cloud import logging as cloud_logging
-
-# auth flow
 from google.auth.transport import requests
 from google.oauth2 import id_token
-
-# ads
-from google.ads.googleads.client import GoogleAdsClient
-
-# custom
-from custom_module.bigquery_actions import dataframe_to_bigquery, send_data_to_bigquery 
-from custom_module.storage_actions import send_data_to_gcs
+from google.cloud import bigquery
+from google.cloud import storage
 
 
 app = FastAPI()
-
 
 # Logging config
 client_logging = cloud_logging.Client()
 client_logging.setup_logging()
 logger = logging.getLogger(__name__)
 
-# set logging destination to stdout (for bigquery logs export)
-stream_handler = logging.StreamHandler(stream=sys.stdout)
-logger.addHandler(stream_handler)
-
-
-# Middleware to verify 'key' in the request headers
-class VerifyKeyMiddleware(BaseHTTPMiddleware):
-    """
-    
-    """
-    async def dispatch(self, request: Request, call_next):
-        key = request.headers.get('access-key', None)
-
-        if key != os.environ.get("ACCESS_KEY"):
-            raise HTTPException(status_code=403, detail="ACCESS_DENIED")
-        
-        response = await call_next(request)
-        return response
-    
-# Middleware to log params
-class LogRequestsMiddleware(BaseHTTPMiddleware):
-    """
-    
-    """
-    async def dispatch(self, request: Request, call_next):
-        # Handle GET requests
-        if request.method == "GET":
-            params = dict(request.query_params)
-            logger.info(f"GET --> {request.url} with params: {params}")
-
-        # Handle POST requests
-        if request.method == "POST":
-            try:
-                body = await request.json()
-                logger.info(f"POST --> {request.url} with JSON body: {body}")
-
-            except Exception as e:
-                logger.error(f"Error parsing JSON body: {e}")
-
-        # Continue processing the request
-        response = await call_next(request)
-        return response
-
-# Adding the middleware to the application
-app.add_middleware(LogRequestsMiddleware)
-
 
 def verify_google_token(request: Request):
-    """
-    OIDC token verification.
-    """
-    auth_header = request.headers.get("Authorization")
+    """OIDC token verification."""
 
+    auth_header = request.headers.get("Authorization")
     if auth_header:
         auth_type, creds = auth_header.split(" ", 1)
-        
         if auth_type.lower() == "bearer":
             try:
                 claims = id_token.verify_oauth2_token(creds, requests.Request())
                 return claims
-            
             except ValueError as e:
-                raise HTTPException(status_code=401, detail=str(e))
-            
+                raise HTTPException(status_code=401, detail="Invalid or missing token")
     raise HTTPException(status_code=401, detail="Invalid or missing token")
 
 
-# Basic Endpoint - only middleware auth
-@app.get("/security/middleware")
-def security_middleware():
-    """
+class VerifyGoogleTokenMiddleware(BaseHTTPMiddleware):
+    """Authenticate each requests with Google OIDC tokens."""
+
+    async def dispatch(self, request: Request, call_next):
+        try:
+            claims = verify_google_token(request)
+            request.state.claims = claims
+        except HTTPException as e:
+            return JSONResponse(status_code=e.status_code, content={"detail": e.detail})
+        
+        response = await call_next(request)
+        return response
     
-    """
-    # Custom logic ...
+app.add_middleware(VerifyGoogleTokenMiddleware)
 
-    content = {"message": "This is an endpoint with middleware auth."}
-    logger.info("Test request successful.")
-    return JSONResponse(content=content)
+class ResponseSchema(BaseModel):
+    "Response schema for service endpoints."
+    status_code: int
+    detail: str
+
+class ExampleDataSchema(BaseModel):
+    "Example marketing campaign data schema. Used to demonstrate data processing."
+
+    date: str
+    campaign: str
+    clicks: int
+    impressions: int
+    cost: float
+
+class BigQueryExportConfig(BaseModel):
+    "BigQuery export configuration, can be extended to accommodate more options."
+
+    table_id: str
+    partition_field: Optional[str] = None
+    clustering_fields: Optional[List[str]] = None
+    write_disposition: Optional[Literal["WRITE_TRUNCATE", "WRITE_APPEND", "WRITE_EMPTY"]] = "WRITE_APPEND"  
 
 
-@app.get("/security/google-oauth")
-async def security_google_oauth(claims: dict = Depends(verify_google_token)):
-    """
-    
-    """
-    # Custom logic ...
-
-    # Accessing the email from the claims
-    email = claims.get("email", "anonymous user")
-    content = {"message": f"This is an endpoint with google auth. Email used: {email}!"}
-    logger.info(content)
-
-    return JSONResponse(content=content)
+def validate_bigquery_config(config: BigQueryExportConfig):
+    """Example function to validate input parameters."""
+    pass 
 
 
-@app.post("/data/to-bigquery")
-async def data_to_bigquery(request: Request):
-    """
-    
-    """
-    # Set the table reference - can also be defined in config file
-    dataset_id = 'your_dataset_id'
-    table_id = 'your_table_id'
+@app.get("/tests/server-time")
+def test_endpoint():
+    """Edpoint to test the middleware. Returns the server time."""
 
-    # Apply custom logic to process `data`...
-    data = await request.json()
+    content = {"message": f"Authenticated request. Server time: {datetime.now()}"}
+    logger.info("Testing endpoint success.")
+    return ResponseSchema(status_code=200, detail=content)
 
-    # Connect to BigQuery
-    bq_client = bigquery.Client()
-    
-    # Send data to BigQuery with custom function
-    return send_data_to_bigquery(bq_client, dataset_id, table_id, data)
+
+
+@app.post("/upload/bigquery")
+async def upload_to_bigquery(
+    data: ExampleDataSchema, 
+    config: BigQueryExportConfig = Depends(validate_bigquery_config)) -> ResponseSchema:
+    """Upload data example campaign data to BigQuery table. Request is validated by pydantic models. 
+    Before export date is chacked against bigquery schema."""
+
+    table_ref = bigquery.TableReference.from_string(config.table_id)
+    schema = [
+        bigquery.SchemaField("date", "DATE"),
+        bigquery.SchemaField("campaign", "STRING"),
+        bigquery.SchemaField("clicks", "INT64"),
+        bigquery.SchemaField("impressions", "INT64"),
+        bigquery.SchemaField("cost", "FLOAT64"),
+    ]
+
+    try:
+        # Convert: pydantic -> dict -> DataFrame
+        df = pd.DataFrame([item.dict() for item in data])
+        df['date'] = pd.to_datetime(df['date'])
+
+        job_config = bigquery.LoadJobConfig(
+            schema = schema,
+            write_disposition = config.write_disposition,
+            clustering_fields= config.clustering_fields,
+            time_partitioning = bigquery.TimePartitioning(
+                type_=bigquery.TimePartitioningType.DAY,
+                field=config.partition_field
+            )
+        )
+        client = bigquery.Client()
+        job = client.load_table_from_dataframe(data, table_ref, job_config=job_config)
+        job.result()
+
+    except Exception as e:
+        logger.error(f"Failed to upload data to BigQuery. {e}")
+        raise HTTPException(status_code=500, detail="Failed to upload data to BigQuery.")
+
+    return ResponseSchema(status_code=200, detail="Data uploaded to BigQuery successfully.")
 
 
 @app.post("/data/to-storage")
@@ -156,21 +140,7 @@ async def data_to_storage(request: Request):
     """
     
     """
-    # Set the bucket name 
-    bucket_name = "your_bucket_name"
-
-    # Create a unique file name: datetime + uuid
-    unique_id = str(datetime.now()) + str(uuid4())
-    file_name = f"your_file_name_{unique_id}"
-
-    # Unpack data from the request
-    data = await request.json()
-
-    # Connect to GCS
-    storage_client = storage.Client()
-    
-    # Send data to GCS using the helper function
-    return send_data_to_gcs(storage_client, bucket_name, file_name, data)
+    pass
 
 
 @app.post("/pubsub/to-bigquery")
@@ -190,6 +160,14 @@ def eventarc_gcs_to_bigquery():
 
 
 @app.post("/database/mysql-to-bigquery")
+def database_msql_to_bigquery():
+    """
+    
+    """
+    pass
+
+
+@app.post("/database/bigquery-to-mysql")
 def database_msql_to_bigquery():
     """
     
